@@ -7,8 +7,9 @@ const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
 const stream = require('stream');
-
+const cors = require('cors');
 const app = express();
+app.use(cors());
 const port = process.env.PORT || 3000;
 
 mongoose
