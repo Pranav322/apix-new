@@ -737,5 +737,28 @@ app.post("/payment/verify", async (req, res) => {
   }
 });
 
+// Add this new endpoint to check if a user has rented a movie
+app.get("/purchase/movie/:id/check", authenticateJWT, async (req, res) => {
+  try {
+    const movieId = req.params.id;
+    const userId = req.user.id;
+
+    // Find the rental record for the user
+    const rental = await Rental.findOne({
+      userId,
+      contentId: movieId,
+      rentalEnd: { $gt: new Date() } // Check if the rental is still active
+    });
+
+    if (rental) {
+      return res.json({ rented: true, rental });
+    } else {
+      return res.json({ rented: false });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "Failed to check rental status" });
+  }
+});
+
 // Start the server
 app.listen(port, () => console.log(`🚀 Server running on http://localhost:${port}`));
