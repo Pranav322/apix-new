@@ -20,7 +20,54 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
-const port = process.env.PORT || 6000;
+const port = process.env.PORT || 5000;
+const authenticateJWT = (req, res, next) => {
+  const token = req.header("Authorization")?.split(" ")[1];
+  if (!token) return res.sendStatus(403);
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+// ... existing code ...
+
+// const User = require("./models/User"); // Ensure this is included
+// const bcrypt = require("bcryptjs");
+// const jwt = require("jsonwebtoken");
+
+// User Registration
+app.post("/auth/register", async (req, res) => {
+  const { username, password, email } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = new User({ username, password: hashedPassword, email });
+  await newUser.save();
+  res.status(201).json({ message: "User registered successfully" });
+});
+
+// User Login
+app.post("/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  res.json({ token });
+});
+
+// Get Current User Details
+app.get("/auth/me", authenticateJWT, async (req, res) => {
+  const user = await User.findById(req.user.id).select("-password");
+  res.json(user);
+});
+
+// ... existing code ...
 
 // MongoDB Models
 const movieSchema = new mongoose.Schema({
@@ -489,14 +536,65 @@ app.get("/movies/:id/status", async (req, res) => {
 // Get all movies
 app.get("/movies", async (req, res) => {
   try {
-    const movies = await Movie.find().sort({ createdAt: -1 });
-    logger.info(`Fetched ${movies.length} movies`);
-    res.json(movies);
+    const { category, type, limit = 20, page = 1 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit); // Ensure both are parsed as integers
+
+    const query = {};
+    if (category) query.category = category;
+    if (type) query.type = type;
+
+    const [movies, total] = await Promise.all([
+      Movie.find(query)
+        .sort({ uploadDate: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)) // Ensure limit is parsed as an integer
+        .lean(),
+      Movie.countDocuments(query)
+    ]);
+
+    res.json({
+      movies,
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (err) {
-    logger.error("Failed to fetch movies", err);
     res.status(500).json({ error: "Failed to fetch movies" });
   }
 });
+app.get("/movies", async (req, res) => {
+    try {
+      const { category, type, limit = 20, page = 1 } = req.query;
+      const skip = (page - 1) * limit;
+  
+      const query = {};
+      if (category) query.category = category;
+      if (type) query.type = type;
+  
+      const [movies, total] = await Promise.all([
+        Movie.find(query)
+          .sort({ uploadDate: -1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .lean(),
+        Movie.countDocuments(query)
+      ]);
+  
+      res.json({
+        movies,
+        pagination: {
+          total,
+          page: parseInt(page),
+          pages: Math.ceil(total / limit)
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch movies" });
+    }
+  });
+  
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -614,6 +712,26 @@ app.post("/reset-password", async (req, res) => {
   } catch (err) {
     logger.error("Failed to reset password", err);
     res.status(500).json({ error: "Failed to reset password" });
+  }
+});
+
+// Search Movies Endpoint
+app.get("/movies/search", async (req, res) => {
+  try {
+    const { query } = req.query;
+    const searchRegex = new RegExp(query, 'i'); // Case-insensitive search
+
+    const movies = await Movie.find({
+      $or: [
+        { title: searchRegex },
+        { category: searchRegex }
+      ]
+    }).lean();
+
+    res.json(movies);
+  } catch (err) {
+    logger.error("Failed to search movies", err);
+    res.status(500).json({ error: "Failed to search movies" });
   }
 });
 
