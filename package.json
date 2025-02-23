@@ -12,6 +12,6 @@
     "ssh2-sftp-client": "^11.0.0"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server2.js"
   }
 }
