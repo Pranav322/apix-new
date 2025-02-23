@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
+const stream = require('stream');
 const cors = require('cors');
 const Razorpay = require("razorpay");
 const crypto = require('crypto');
@@ -189,12 +190,12 @@ async function convertToHLS(inputPath, outputFolder) {
     
     const ffmpegCmd = `
       ffmpeg -i ${inputPath} \
-      -map 0:v -map 0:a? -c:v libx264 -crf 23 -maxrate 2000k -bufsize 4000k -vf "scale=1280:720" -c:a aac -ar 48000 -b:a 128k \
-      -hls_time 6 -hls_list_size 0 -hls_segment_filename "${outputFolder}/720p_%03d.ts" -hls_playlist_type vod "${outputFolder}/720p.m3u8" \
-      -map 0:v -map 0:a? -c:v libx264 -crf 23 -maxrate 1000k -bufsize 2000k -vf "scale=854:480" -c:a aac -ar 48000 -b:a 128k \
-      -hls_time 6 -hls_list_size 0 -hls_segment_filename "${outputFolder}/480p_%03d.ts" -hls_playlist_type vod "${outputFolder}/480p.m3u8" \
-      -map 0:v -map 0:a? -c:v libx264 -crf 23 -maxrate 600k -bufsize 1200k -vf "scale=640:360" -c:a aac -ar 48000 -b:a 128k \
-      -hls_time 6 -hls_list_size 0 -hls_segment_filename "${outputFolder}/360p_%03d.ts" -hls_playlist_type vod "${outputFolder}/360p.m3u8"
+  -map 0:v -map 0:a? -c:v libx264 -crf 23 -maxrate 2000k -bufsize 4000k -vf "scale=1280:720" -c:a aac -ar 48000 -b:a 128k \
+  -hls_time 6 -hls_list_size 0 -hls_segment_filename "${outputFolder}/720p_%03d.ts" -hls_playlist_type vod "${outputFolder}/720p.m3u8" \
+  -map 0:v -map 0:a? -c:v libx264 -crf 23 -maxrate 1000k -bufsize 2000k -vf "scale=854:480" -c:a aac -ar 48000 -b:a 128k \
+  -hls_time 6 -hls_list_size 0 -hls_segment_filename "${outputFolder}/480p_%03d.ts" -hls_playlist_type vod "${outputFolder}/480p.m3u8" \
+  -map 0:v -map 0:a? -c:v libx264 -crf 23 -maxrate 600k -bufsize 1200k -vf "scale=640:360" -c:a aac -ar 48000 -b:a 128k \
+  -hls_time 6 -hls_list_size 0 -hls_segment_filename "${outputFolder}/360p_%03d.ts" -hls_playlist_type vod "${outputFolder}/360p.m3u8"
     `;
     
     exec(ffmpegCmd, (error, stdout, stderr) => {
