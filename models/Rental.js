@@ -4,12 +4,10 @@ const rentalSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   contentId: { type: mongoose.Schema.Types.ObjectId, ref: "Movie", required: true },
   contentType: { type: String, enum: ['movie', 'show', 'episode'], required: true },
-  rentalStart: { type: Date, default: Date.now },
   rentalEnd: { type: Date, required: true },
-  status: { type: String, default: 'active' }, // Can be 'active' or 'expired'
+  status: { type: String, enum: ['active', 'expired'], default: 'active' },
   paymentStatus: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
-  paymentId: String,
-  orderId: String
+  createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model("Rental", rentalSchema); 
