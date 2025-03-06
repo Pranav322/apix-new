@@ -179,11 +179,12 @@ router.get("/history", authenticateJWT, async (req, res) => {
 
     const purchaseHistory = rentals.map(rental => ({
       rentalId: rental._id,
-      contentId: rental.contentId._id,
-      title: rental.contentId.title,
+      contentId: rental.contentId?._id || null,
+      title: rental.contentId?.title || 'Content Unavailable',
       rentalEnd: rental.rentalEnd,
       status: rental.paymentStatus,
-      contentType: rental.contentType
+      contentType: rental.contentType,
+      createdAt: rental.createdAt
     }));
 
     logger.info(`Retrieved purchase history for user: ${userId}`);
