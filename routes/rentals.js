@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Movie = require('../models/Movie');
 const Rental = require('../models/Rental');
 const authenticateJWT = require('../middleware/auth');
