@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Movie = require('../models/Movie');
+const Rental = require('../models/Rental');
+const Wishlist = require('../models/Wishlist');
 const authenticateJWT = require('../middleware/auth');
 const logger = require('../config/logger');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const { WATCH_DIRS } = require('../services/fileManagement');
 
