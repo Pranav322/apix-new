@@ -1,0 +1,28 @@
+{
+    "title": "Stranger Things",
+    "category": "Sci-Fi",
+    "description": "A group of young friends witness supernatural forces and secret government exploits...",
+    "type": "show",
+    "rentalPrice": 499,
+    "seasons": [
+      {
+        "seasonNumber": 1,
+        "title": "Season 1",
+        "description": "The first season of Stranger Things",
+        "episodes": [
+          {
+            "episodeNumber": 1,
+            "title": "Chapter One: The Vanishing of Will Byers",
+            "description": "On his way home from a friend's house, young Will sees something terrifying...",
+            "duration": 3600
+          },
+          {
+            "episodeNumber": 2,
+            "title": "Chapter Two: The Weirdo on Maple Street",
+            "description": "Lucas, Mike and Dustin try to talk to the girl they found in the woods...",
+            "duration": 3600
+          }
+        ]
+      }
+    ]
+  }

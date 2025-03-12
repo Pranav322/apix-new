@@ -172,20 +172,31 @@ router.get("/active", authenticateJWT, async (req, res) => {
 router.get("/history", authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.id;
+    const currentDate = new Date();
 
     const rentals = await Rental.find({ userId })
       .populate('contentId')
       .sort({ rentalEnd: -1 });
 
-    const purchaseHistory = rentals.map(rental => ({
-      rentalId: rental._id,
-      contentId: rental.contentId?._id || null,
-      title: rental.contentId?.title || 'Content Unavailable',
-      rentalEnd: rental.rentalEnd,
-      status: rental.paymentStatus,
-      contentType: rental.contentType,
-      createdAt: rental.createdAt
-    }));
+    const purchaseHistory = rentals.map(rental => {
+      const isExpired = new Date(rental.rentalEnd) < currentDate;
+      
+      return {
+        rentalId: rental._id,
+        contentId: rental.contentId?._id || null,
+        title: rental.contentId?.title || 'Content Unavailable',
+        description: rental.contentId?.description || '',
+        thumbnailUrl: rental.contentId?.thumbnailUrl || null,
+        category: rental.contentId?.category || '',
+        rentalEnd: rental.rentalEnd,
+        isExpired: isExpired,
+        rentalStatus: isExpired ? 'expired' : 'active',
+        paymentStatus: rental.paymentStatus,
+        contentType: rental.contentType,
+        createdAt: rental.createdAt,
+        canWatch: !isExpired && rental.paymentStatus === 'completed'
+      };
+    });
 
     logger.info(`Retrieved purchase history for user: ${userId}`);
     res.json(purchaseHistory);
