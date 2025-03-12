@@ -11,6 +11,7 @@ router.post("/movie/:id", authenticateJWT, async (req, res) => {
   try {
     const movieId = req.params.id;
     const userId = req.user.id;
+    const currentDate = new Date();
 
     logger.info(`Rental request received - Movie: ${movieId}, User: ${userId}`);
 
@@ -25,11 +26,13 @@ router.post("/movie/:id", authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: "Movie not found" });
     }
 
+    // Check for active and unexpired rental
     const existingRental = await Rental.findOne({
       userId,
       contentId: movieId,
       status: 'active',
-      paymentStatus: { $in: ['completed', 'pending'] }
+      paymentStatus: { $in: ['completed', 'pending'] },
+      rentalEnd: { $gt: currentDate }
     });
 
     if (existingRental) {
@@ -39,6 +42,19 @@ router.post("/movie/:id", authenticateJWT, async (req, res) => {
         rental: existingRental
       });
     }
+
+    // If there's an expired rental, update its status
+    await Rental.updateMany(
+      {
+        userId,
+        contentId: movieId,
+        status: 'active',
+        rentalEnd: { $lte: currentDate }
+      },
+      {
+        $set: { status: 'expired' }
+      }
+    );
 
     const rentalEnd = new Date();
     rentalEnd.setHours(rentalEnd.getHours() + 48);
@@ -70,12 +86,43 @@ router.post("/show/:id", authenticateJWT, async (req, res) => {
   try {
     const showId = req.params.id;
     const userId = req.user.id;
+    const currentDate = new Date();
 
     const show = await Movie.findById(showId);
     if (!show || show.type !== 'show') {
       logger.error(`Show not found: ${showId}`);
       return res.status(404).json({ error: "Show not found" });
     }
+
+    // Check for active and unexpired rental
+    const existingRental = await Rental.findOne({
+      userId,
+      contentId: showId,
+      status: 'active',
+      paymentStatus: { $in: ['completed', 'pending'] },
+      rentalEnd: { $gt: currentDate }
+    });
+
+    if (existingRental) {
+      logger.warn(`User ${userId} already has an active rental for show ${showId}`);
+      return res.json({ 
+        message: "Rental already exists",
+        rental: existingRental
+      });
+    }
+
+    // If there's an expired rental, update its status
+    await Rental.updateMany(
+      {
+        userId,
+        contentId: showId,
+        status: 'active',
+        rentalEnd: { $lte: currentDate }
+      },
+      {
+        $set: { status: 'expired' }
+      }
+    );
 
     const rentalEnd = new Date();
     rentalEnd.setHours(rentalEnd.getHours() + 48);
@@ -85,6 +132,7 @@ router.post("/show/:id", authenticateJWT, async (req, res) => {
       contentId: showId,
       contentType: 'show',
       rentalEnd,
+      status: 'active',
       paymentStatus: 'pending'
     });
 
@@ -108,6 +156,7 @@ router.post("/show/:id/season/:seasonNumber/episode/:episodeNumber", authenticat
     const seasonNumber = req.params.seasonNumber;
     const episodeNumber = req.params.episodeNumber;
     const userId = req.user.id;
+    const currentDate = new Date();
 
     const show = await Movie.findById(showId);
     if (!show || show.type !== 'show') {
@@ -127,6 +176,36 @@ router.post("/show/:id/season/:seasonNumber/episode/:episodeNumber", authenticat
       return res.status(404).json({ error: "Episode not found" });
     }
 
+    // Check for active and unexpired rental
+    const existingRental = await Rental.findOne({
+      userId,
+      contentId: showId,
+      status: 'active',
+      paymentStatus: { $in: ['completed', 'pending'] },
+      rentalEnd: { $gt: currentDate }
+    });
+
+    if (existingRental) {
+      logger.warn(`User ${userId} already has an active rental for episode ${episode.title}`);
+      return res.json({ 
+        message: "Rental already exists",
+        rental: existingRental
+      });
+    }
+
+    // If there's an expired rental, update its status
+    await Rental.updateMany(
+      {
+        userId,
+        contentId: showId,
+        status: 'active',
+        rentalEnd: { $lte: currentDate }
+      },
+      {
+        $set: { status: 'expired' }
+      }
+    );
+
     const rentalEnd = new Date();
     rentalEnd.setHours(rentalEnd.getHours() + 48);
 
@@ -135,6 +214,7 @@ router.post("/show/:id/season/:seasonNumber/episode/:episodeNumber", authenticat
       contentId: showId,
       contentType: 'episode',
       rentalEnd,
+      status: 'active',
       paymentStatus: 'pending'
     });
 
@@ -155,13 +235,47 @@ router.post("/show/:id/season/:seasonNumber/episode/:episodeNumber", authenticat
 router.get("/active", authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.id;
+    const currentDate = new Date();
+
+    logger.info(`Fetching active rentals for user: ${userId}`);
+    logger.info(`Current date: ${currentDate}`);
+
     const activeRentals = await Rental.find({
       userId,
-      rentalEnd: { $gt: new Date() }
-    }).populate('contentId');
+      status: 'active',
+      paymentStatus: 'completed',
+      rentalEnd: { $gt: currentDate }
+    }).populate({
+      path: 'contentId',
+      select: 'title type category description thumbnailUrl hlsUrl seasons'
+    });
 
-    logger.info(`Retrieved active rentals for user: ${userId}`);
-    res.json(activeRentals);
+    logger.info(`Found ${activeRentals.length} active rentals`);
+
+    const formattedRentals = activeRentals.map(rental => {
+      const content = rental.contentId;
+      if (!content) {
+        return null;
+      }
+
+      return {
+        rentalId: rental._id,
+        contentId: content._id,
+        title: content.title,
+        type: content.type,
+        category: content.category,
+        description: content.description,
+        thumbnailUrl: content.thumbnailUrl,
+        hlsUrl: content.hlsUrl,
+        rentalEnd: rental.rentalEnd,
+        contentType: rental.contentType,
+        paymentStatus: rental.paymentStatus,
+        // For shows, include season and episode info
+        seasons: content.type === 'show' ? content.seasons : undefined
+      };
+    }).filter(rental => rental !== null);
+
+    res.json(formattedRentals);
   } catch (err) {
     logger.error(`Failed to fetch active rentals: ${err.message}`);
     res.status(500).json({ error: "Failed to fetch active rentals" });
