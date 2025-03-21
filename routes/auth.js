@@ -6,6 +6,30 @@ const User = require('../models/User');
 const transporter = require('../config/email');
 const authenticateJWT = require('../middleware/auth');
 const logger = require('../config/logger');
+const crypto = require('crypto');
+
+// Helper function to generate tokens
+const generateTokens = async (user) => {
+  // Generate access token (short-lived)
+  const accessToken = jwt.sign(
+    { id: user._id },
+    process.env.JWT_SECRET,
+    { expiresIn: '15m' } // Shorter expiry for access token
+  );
+
+  // Generate refresh token (long-lived)
+  const refreshToken = crypto.randomBytes(40).toString('hex');
+  const refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+  // Save refresh token to user
+  await user.addRefreshToken(refreshToken, refreshTokenExpiry);
+
+  return {
+    accessToken,
+    refreshToken,
+    refreshTokenExpiry
+  };
+};
 
 // User Registration
 router.post("/register", async (req, res) => {
@@ -19,21 +43,110 @@ router.post("/register", async (req, res) => {
 
 // User Login
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email });
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
 
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ error: "Invalid credentials" });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const tokens = await generateTokens(user);
+
+    res.json({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: {
+        id: user._id,
+        email: user.email,
+        username: user.username
+      }
+    });
+  } catch (error) {
+    logger.error('Login error:', error);
+    res.status(500).json({ error: "Login failed" });
   }
+});
 
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "24h" });
-  res.json({ token });
+// Refresh Token endpoint
+router.post("/refresh-token", async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ error: "Refresh token is required" });
+    }
+
+    // Find user with this refresh token
+    const user = await User.findOne({
+      'refreshTokens.token': refreshToken,
+      'refreshTokens.isRevoked': false,
+      'refreshTokens.expiresAt': { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: "Invalid or expired refresh token" });
+    }
+
+    // Revoke the old refresh token
+    await user.revokeRefreshToken(refreshToken);
+
+    // Generate new tokens
+    const tokens = await generateTokens(user);
+
+    res.json({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
+    });
+  } catch (error) {
+    logger.error('Refresh token error:', error);
+    res.status(500).json({ error: "Token refresh failed" });
+  }
+});
+
+// Logout endpoint
+router.post("/logout", authenticateJWT, async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (user && refreshToken) {
+      // Revoke specific refresh token
+      await user.revokeRefreshToken(refreshToken);
+    }
+
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    logger.error('Logout error:', error);
+    res.status(500).json({ error: "Logout failed" });
+  }
+});
+
+// Logout from all devices
+router.post("/logout-all", authenticateJWT, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (user) {
+      await user.revokeAllRefreshTokens();
+    }
+    res.json({ message: "Logged out from all devices" });
+  } catch (error) {
+    logger.error('Logout all error:', error);
+    res.status(500).json({ error: "Logout from all devices failed" });
+  }
 });
 
 // Get Current User Details
 router.get("/me", authenticateJWT, async (req, res) => {
-  const user = await User.findById(req.user.id).select("-password");
-  res.json(user);
+  try {
+    const user = await User.findById(req.user.id).select("-password -refreshTokens");
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json(user);
+  } catch (error) {
+    logger.error('Get user error:', error);
+    res.status(500).json({ error: "Failed to fetch user details" });
+  }
 });
 
 // Forgot password endpoint to send OTP
