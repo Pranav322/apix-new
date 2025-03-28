@@ -99,7 +99,8 @@ router.get("/:id/status", async (req, res) => {
         trailerUrl: movie.trailerUrl,
         category: movie.category,
         type: movie.type,
-        description: movie.description
+        description: movie.description,
+        duration: movie.duration
       });
     }
   } catch (err) {

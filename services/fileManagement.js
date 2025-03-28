@@ -80,13 +80,21 @@ async function validateUploadStructure(uploadDir) {
 
     // Different validation for shows and movies
     if (metadata.type === 'show') {
-      if (!files.includes('thumbnail.jpg')) {
-        throw new Error('thumbnail.jpg is required for show');
+      if (!files.includes('thumbnail.jpg') && !files.includes('thumbnail.png')) {
+        throw new Error('Either thumbnail.jpg or thumbnail.png is required for show');
       }
       // Show validation will be handled by validateShowStructure
     } else {
       // Movie validation
-      const requiredFiles = ['video.mp4', 'thumbnail.jpg'];
+      const videoReq = 'video.mp4';
+      const thumbnailReq = files.includes('thumbnail.jpg') ? 'thumbnail.jpg' : 
+                           files.includes('thumbnail.png') ? 'thumbnail.png' : null;
+      
+      if (!thumbnailReq) {
+        throw new Error('Either thumbnail.jpg or thumbnail.png is required');
+      }
+      
+      const requiredFiles = [videoReq, thumbnailReq];
       for (const file of requiredFiles) {
         const filePath = path.join(uploadDir, file);
         if (!files.includes(file)) {

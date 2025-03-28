@@ -43,13 +43,16 @@ async function processShowDirectory(dirPath, metadata) {
 
       const baseUrl = `https://theapix.in/uploads/completed/${path.basename(dirPath)}/s${season.seasonNumber}e${episode.episodeNumber}`;
       
+      // Determine thumbnail extension
+      const thumbnailExt = fsSync.existsSync(path.join(episodePath, 'thumbnail.png')) ? 'png' : 'jpg';
+      
       const episodeObj = {
         episodeNumber: episode.episodeNumber,
         title: episode.title,
         description: episode.description,
         duration: episode.duration,
         hlsUrl: `${baseUrl}/video/master.m3u8`,
-        thumbnailUrl: `${baseUrl}/thumbnail.jpg`,
+        thumbnailUrl: `${baseUrl}/thumbnail.${thumbnailExt}`,
         status: 'completed',
         processingProgress: 100
       };
@@ -85,7 +88,15 @@ async function validateShowStructure(dirPath, metadata) {
         throw new Error(`Missing directory for episode ${episode.episodeNumber} of season ${season.seasonNumber}`);
       }
 
-      const requiredFiles = ['video.mp4', 'thumbnail.jpg'];
+      const videoReq = 'video.mp4';
+      const thumbnailReq = fsSync.existsSync(path.join(episodePath, 'thumbnail.jpg')) ? 'thumbnail.jpg' : 
+                          fsSync.existsSync(path.join(episodePath, 'thumbnail.png')) ? 'thumbnail.png' : null;
+      
+      if (!thumbnailReq) {
+        throw new Error(`Missing thumbnail image (jpg or png) for episode ${episode.episodeNumber} of season ${season.seasonNumber}`);
+      }
+      
+      const requiredFiles = [videoReq, thumbnailReq];
       for (const file of requiredFiles) {
         if (!fsSync.existsSync(path.join(episodePath, file))) {
           throw new Error(`Missing ${file} for episode ${episode.episodeNumber} of season ${season.seasonNumber}`);
@@ -143,12 +154,22 @@ async function processUploadedDirectory(dirPath) {
       await convertToHLS(videoPath, outputDir, contentDoc._id);
 
       const baseUrl = `https://theapix.in/uploads/completed/${dirName}`;
+      
+      // Determine thumbnail type
+      const thumbnailExt = fsSync.existsSync(path.join(processingPath, 'thumbnail.png')) ? 'png' : 'jpg';
+      
+      // Determine trailer type and path
+      let trailerUrl = null;
+      if (fsSync.existsSync(path.join(processingPath, 'trailer.mp4'))) {
+        trailerUrl = `${baseUrl}/trailer.mp4`;
+      } else if (fsSync.existsSync(path.join(processingPath, 'trailer.mov'))) {
+        trailerUrl = `${baseUrl}/trailer.mov`;
+      }
+      
       await Movie.findByIdAndUpdate(contentDoc._id, {
         hlsUrl: `${baseUrl}/video/master.m3u8`,
-        thumbnailUrl: `${baseUrl}/thumbnail.jpg`,
-        trailerUrl: fsSync.existsSync(path.join(processingPath, 'trailer.mp4')) 
-          ? `${baseUrl}/trailer.mp4` 
-          : null,
+        thumbnailUrl: `${baseUrl}/thumbnail.${thumbnailExt}`,
+        trailerUrl: trailerUrl,
         status: 'completed',
         processingProgress: 100
       });
@@ -261,9 +282,16 @@ async function checkDirectoryDetails(dirPath) {
           // Check episode directory contents
           const episodePath = path.join(dirPath, episodeDirName);
           const episodeContents = await fs.readdir(episodePath);
-          const requiredEpisodeFiles = ['video.mp4', 'thumbnail.jpg'];
+          const videoReq = 'video.mp4';
+          const thumbnailReq = fsSync.existsSync(path.join(episodePath, 'thumbnail.jpg')) ? 'thumbnail.jpg' : 
+                              fsSync.existsSync(path.join(episodePath, 'thumbnail.png')) ? 'thumbnail.png' : null;
           
-          for (const file of requiredEpisodeFiles) {
+          if (!thumbnailReq) {
+            throw new Error(`Missing thumbnail image (jpg or png) for episode ${episode.episodeNumber} of season ${season.seasonNumber}`);
+          }
+          
+          const requiredFiles = [videoReq, thumbnailReq];
+          for (const file of requiredFiles) {
             if (!episodeContents.includes(file)) {
               logger.error(`Missing ${file} in episode directory: ${episodeDirName}`);
               return false;

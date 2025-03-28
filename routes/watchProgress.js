@@ -74,7 +74,25 @@ router.get('/continue-watching', auth, async (req, res) => {
     // Filter out any items where the content no longer exists
     const validProgress = progress.filter(item => item.contentId != null);
     
-    res.json(validProgress);
+    // Transform the data to include duration directly from watch progress
+    const formattedProgress = validProgress.map(item => {
+      // Create a content object that includes all fields from the populated contentId
+      const content = item.contentId.toObject ? item.contentId.toObject() : {...item.contentId};
+      
+      // Add the duration from the watch progress record to the content
+      content.duration = item.duration;
+      
+      return {
+        contentId: content,
+        percentageWatched: item.percentageWatched,
+        position: item.position,
+        lastWatched: item.lastWatched,
+        episodeNumber: item.episodeNumber,
+        seasonNumber: item.seasonNumber
+      };
+    });
+    
+    res.json(formattedProgress);
   } catch (error) {
     console.error('Error fetching continue watching:', error);
     res.status(500).json({ error: error.message });

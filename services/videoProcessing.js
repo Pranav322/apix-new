@@ -21,6 +21,12 @@ async function convertToHLS(inputPath, outputFolder, movieId) {
         const metadata = JSON.parse(stdout);
         const duration = parseFloat(metadata.format.duration);
         logger.info(`Video duration: ${duration} seconds`);
+        
+        // Save duration to the movie document
+        await Movie.findByIdAndUpdate(movieId, {
+          duration: Math.round(duration)
+        });
+        logger.info(`Saved duration (${Math.round(duration)} seconds) to movie ID: ${movieId}`);
 
         const ffmpegCmd = `
           ffmpeg -i "${inputPath}" \

@@ -23,6 +23,7 @@ const movieSchema = new mongoose.Schema({
   category: { type: String, required: true },
   description: { type: String },
   type: { type: String, enum: ['movie', 'show'], required: true },
+  duration: { type: Number },
   rentalPrice: { type: Number },
   status: { type: String, enum: ['pending', 'processing', 'completed', 'failed'], default: 'pending' },
   processingProgress: { type: Number, default: 0 },
