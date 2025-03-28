@@ -16,6 +16,7 @@ const paymentRoutes = require('./routes/payments');
 const rentalRoutes = require('./routes/rentals');
 const wishlistRoutes = require('./routes/wishlist');
 const watchProgressRoutes = require('./routes/watchProgress');
+const movieInteractionsRoutes = require('./routes/movieInteractions');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/payment', paymentRoutes);
 app.use('/purchase', rentalRoutes);
 app.use('/wishlist', wishlistRoutes);
 app.use('/watch-progress', watchProgressRoutes);
+app.use('/movie-interactions', movieInteractionsRoutes);
 
 // Direct streaming route to match frontend
 app.get('/stream/:id', authenticateJWT, async (req, res) => {

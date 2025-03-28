@@ -69,6 +69,10 @@ router.post("/movie/:id", authenticateJWT, async (req, res) => {
     });
 
     await rental.save();
+    
+    // Increment watch count when rental is created
+    await Movie.findByIdAndUpdate(movieId, { $inc: { watchCount: 1 } });
+    
     logger.success(`Rental created for movie: ${movieId}, user: ${userId}`);
 
     res.json({ 

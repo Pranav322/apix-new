@@ -32,6 +32,8 @@ const movieSchema = new mongoose.Schema({
   trailerUrl: String,
   errorDetails: String,
   seasons: [seasonSchema], // Only used when type is 'show'
+  likeCount: { type: Number, default: 0 }, // Track total likes
+  watchCount: { type: Number, default: 0 }, // Track total rentals/watches
   createdAt: { type: Date, default: Date.now }
 });
 
